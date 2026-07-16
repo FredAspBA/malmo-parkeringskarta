@@ -76,15 +76,30 @@
     font-size: 11px;
     color: var(--ink-muted);
   }
+  .legend-header {
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  }
   .legend-title {
     font-family: 'Barlow Semi Condensed', sans-serif;
     font-weight: 700;
     font-size: 16px;
     letter-spacing: .01em;
-    margin: 0 0 10px;
+    margin: 0;
     color: var(--ink);
     text-wrap: balance;
   }
+  .legend-plaque .legend-body { margin-top: 10px; }
+  .legend-plaque.is-collapsed .legend-header { justify-content: flex-start; }
+  .legend-toggle {
+    flex: 0 0 auto;
+    width: 26px; height: 26px; border-radius: 50%;
+    border: 1px solid var(--line); background: var(--paper); color: var(--ink);
+    font-size: 15px; line-height: 1; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: background .15s ease;
+  }
+  .legend-toggle:hover { background: var(--line); }
+  .legend-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
   .rate-list { display: flex; flex-direction: column; gap: 5px; }
   .rate-row { display: flex; align-items: center; gap: 9px; }
@@ -269,7 +284,7 @@ const zoneLayer = L.tileLayer.wms(WMS_BASE, {
 // ---- Legend ----
 const legend = L.control({ position: 'topright' });
 legend.onAdd = function () {
-  const div = L.DomUtil.create('div', 'plaque');
+  const div = L.DomUtil.create('div', 'plaque legend-plaque');
   let rows = TAXA.map(t => `
     <div class="rate-row">
       <span class="rate-chip" style="background:${t.color}"></span>
@@ -277,21 +292,40 @@ legend.onAdd = function () {
       <span class="rate-price">${t.price}</span>
     </div>`).join('');
   div.innerHTML = `
-    <div class="legend-title">Parkeringstaxor i Malmö</div>
-    <div class="rate-list">${rows}
-      <div class="rate-row">
-        <span class="legend-facility-chip"><span class="facility-badge" style="width:16px;height:16px;font-size:9px;line-height:12px;">P</span></span>
-        <span class="rate-name">P-anläggningar</span>
-        <span class="rate-price">Eget fast pris</span>
-      </div>
+    <div class="legend-header">
+      <div class="legend-title">Parkeringstaxor i Malmö</div>
+      <button type="button" class="legend-toggle" id="legend-toggle" aria-label="Minimera taxor" aria-expanded="true">−</button>
     </div>
-    <div class="legend-note">
-      Klicka på en gata eller ett P-märke för exakt pris, eller sök en adress till vänster.
-      Zoner hämtas live från Malmö stad. Boendeparkering ger lägre avgift inom eget område.
-      Vägmärket på plats gäller alltid.
+    <div class="legend-body" id="legend-body">
+      <div class="rate-list">${rows}
+        <div class="rate-row">
+          <span class="legend-facility-chip"><span class="facility-badge" style="width:16px;height:16px;font-size:9px;line-height:12px;">P</span></span>
+          <span class="rate-name">P-anläggningar</span>
+          <span class="rate-price">Eget fast pris</span>
+        </div>
+      </div>
+      <div class="legend-note">
+        Klicka på en gata eller ett P-märke för exakt pris, eller sök en adress till vänster.
+        Zoner hämtas live från Malmö stad. Boendeparkering ger lägre avgift inom eget område.
+        Vägmärket på plats gäller alltid.
+      </div>
     </div>
   `;
   L.DomEvent.disableClickPropagation(div);
+
+  const toggleBtn = div.querySelector('#legend-toggle');
+  const body = div.querySelector('#legend-body');
+  function setCollapsed(collapsed) {
+    div.classList.toggle('is-collapsed', collapsed);
+    body.style.display = collapsed ? 'none' : '';
+    toggleBtn.textContent = collapsed ? '+' : '−';
+    toggleBtn.setAttribute('aria-expanded', String(!collapsed));
+    toggleBtn.setAttribute('aria-label', collapsed ? 'Visa taxor' : 'Minimera taxor');
+  }
+  toggleBtn.addEventListener('click', () => setCollapsed(!div.classList.contains('is-collapsed')));
+  // Hopfälld som standard på smala skärmar, så kartan inte skyms på mobilen.
+  setCollapsed(window.innerWidth < 640);
+
   return div;
 };
 legend.addTo(map);
