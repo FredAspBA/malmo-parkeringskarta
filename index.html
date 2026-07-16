@@ -2,35 +2,229 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Semi+Condensed:wght@600;700&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
 <style>
-  html, body { height: 100%; margin: 0; font-family: -apple-system, Segoe UI, Roboto, Arial, sans-serif; }
+  :root {
+    --paper: #eef3f2;
+    --panel: #ffffff;
+    --ink: #14201f;
+    --ink-muted: #57706c;
+    --line: #d7e3e0;
+    --accent: #0b6e7f;
+    --accent-strong: #094f5c;
+    --accent-ink: #ffffff;
+    --shadow: rgba(10, 30, 28, .16);
+    --facility-bg: #1b2422;
+    --facility-fg: #e3ac3d;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --paper: #0c1416;
+      --panel: #131e1f;
+      --ink: #e6efec;
+      --ink-muted: #93a8a3;
+      --line: #263130;
+      --accent: #3fc2d1;
+      --accent-strong: #6fd4e0;
+      --accent-ink: #06262b;
+      --shadow: rgba(0, 0, 0, .55);
+    }
+  }
+  :root[data-theme="dark"] {
+    --paper: #0c1416;
+    --panel: #131e1f;
+    --ink: #e6efec;
+    --ink-muted: #93a8a3;
+    --line: #263130;
+    --accent: #3fc2d1;
+    --accent-strong: #6fd4e0;
+    --accent-ink: #06262b;
+    --shadow: rgba(0, 0, 0, .55);
+  }
+  :root[data-theme="light"] {
+    --paper: #eef3f2;
+    --panel: #ffffff;
+    --ink: #14201f;
+    --ink-muted: #57706c;
+    --line: #d7e3e0;
+    --accent: #0b6e7f;
+    --accent-strong: #094f5c;
+    --accent-ink: #ffffff;
+    --shadow: rgba(10, 30, 28, .16);
+  }
+
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; background: var(--paper); }
   #map { position: absolute; top: 0; bottom: 0; left: 0; right: 0; }
 
-  .panel {
-    background: #fff;
-    padding: 12px 14px;
-    border-radius: 8px;
-    box-shadow: 0 1px 6px rgba(0,0,0,.35);
-    font-size: 13px;
-    line-height: 1.4;
-    color: #222;
+  .plaque {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    box-shadow: 0 10px 26px var(--shadow), 0 1px 2px var(--shadow);
+    padding: 14px 16px;
+    font: 400 13.5px/1.45 'Barlow', sans-serif;
+    color: var(--ink);
   }
-  .panel h1 { font-size: 15px; margin: 0 0 8px; }
-  .panel table { border-collapse: collapse; }
-  .panel td { padding: 2px 6px 2px 0; vertical-align: middle; }
-  .swatch { width: 14px; height: 14px; border-radius: 3px; display: inline-block; border: 1px solid rgba(0,0,0,.25); }
-  .taxa-name { font-weight: 600; white-space: nowrap; }
-  .price { white-space: nowrap; color: #333; }
-  .legend-note { margin-top: 8px; font-size: 11px; color: #666; max-width: 230px; }
+  .eyebrow {
+    font-family: 'Barlow Semi Condensed', sans-serif;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .09em;
+    font-size: 11px;
+    color: var(--ink-muted);
+  }
+  .legend-title {
+    font-family: 'Barlow Semi Condensed', sans-serif;
+    font-weight: 700;
+    font-size: 16px;
+    letter-spacing: .01em;
+    margin: 0 0 10px;
+    color: var(--ink);
+    text-wrap: balance;
+  }
 
-  .popup-title { font-weight: 700; margin-bottom: 4px; }
-  .popup-price { margin-bottom: 2px; }
-  .popup-source { font-size: 11px; color: #777; margin-top: 6px; }
+  .rate-list { display: flex; flex-direction: column; gap: 5px; }
+  .rate-row { display: flex; align-items: center; gap: 9px; }
+  .rate-chip { width: 9px; height: 18px; border-radius: 2px; flex: 0 0 auto; }
+  .rate-name {
+    font-family: 'Barlow Semi Condensed', sans-serif;
+    font-weight: 600;
+    font-size: 13px;
+    white-space: nowrap;
+  }
+  .rate-price {
+    margin-left: auto;
+    font-family: 'IBM Plex Mono', monospace;
+    font-variant-numeric: tabular-nums;
+    font-size: 11.5px;
+    color: var(--ink-muted);
+    white-space: nowrap;
+    text-align: right;
+    padding-left: 10px;
+  }
+  .legend-note {
+    margin-top: 11px;
+    padding-top: 10px;
+    border-top: 1px solid var(--line);
+    font-size: 11.5px;
+    line-height: 1.5;
+    color: var(--ink-muted);
+    max-width: 235px;
+  }
+
+  .search-pill {
+    display: flex; align-items: center; gap: 6px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    padding: 5px 5px 5px 16px;
+    box-shadow: 0 10px 26px var(--shadow), 0 1px 2px var(--shadow);
+  }
+  .search-pill input {
+    border: none; background: transparent; outline: none;
+    font: 400 13.5px/1.4 'Barlow', sans-serif;
+    color: var(--ink); width: 190px;
+  }
+  .search-pill input::placeholder { color: var(--ink-muted); }
+  .search-pill button {
+    border: none; border-radius: 999px; cursor: pointer;
+    padding: 8px 18px;
+    background: var(--accent); color: var(--accent-ink);
+    font-family: 'Barlow Semi Condensed', sans-serif;
+    font-weight: 600; letter-spacing: .03em; font-size: 13px;
+    transition: background .15s ease;
+  }
+  .search-pill button:hover { background: var(--accent-strong); }
+  .search-pill input:focus-visible, .search-pill button:focus-visible {
+    outline: 2px solid var(--accent); outline-offset: 2px;
+  }
+  .search-status {
+    font-family: 'Barlow', sans-serif;
+    font-size: 11.5px; color: var(--ink-muted);
+    margin-top: 6px; margin-left: 4px; min-height: 14px;
+  }
+
+  .facility-badge {
+    width: 20px; height: 20px; border-radius: 50%;
+    background: var(--facility-bg); color: var(--facility-fg);
+    font-family: 'Barlow Semi Condensed', sans-serif; font-weight: 700; font-size: 12px;
+    line-height: 18px; text-align: center;
+    border: 2px solid var(--facility-fg);
+    box-shadow: 0 0 3px rgba(0,0,0,.7);
+  }
+  .legend-facility-chip {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 18px; height: 18px; font-size: 10px; flex: 0 0 auto;
+  }
 
   .loading-badge {
-    position: absolute; top: 10px; left: 50%; transform: translateX(-50%);
-    background: #222; color: #fff; padding: 4px 10px; border-radius: 20px;
-    font-size: 12px; z-index: 1000; opacity: 0.85; pointer-events: none;
+    position: absolute; top: 14px; left: 50%; transform: translateX(-50%);
+    display: flex; align-items: center; gap: 7px;
+    background: var(--ink); color: var(--paper);
+    padding: 7px 14px; border-radius: 20px;
+    font: 600 12px/1 'Barlow Semi Condensed', sans-serif; letter-spacing: .03em;
+    z-index: 1000; pointer-events: none;
+    box-shadow: 0 8px 20px var(--shadow);
+  }
+  .loading-dot {
+    width: 6px; height: 6px; border-radius: 50%; background: var(--accent);
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .loading-dot { animation: pulse 1s ease-in-out infinite; }
+  }
+  @keyframes pulse { 0%, 100% { opacity: .35; } 50% { opacity: 1; } }
+
+  /* Leaflet popup skin */
+  .leaflet-popup-content-wrapper {
+    background: var(--panel); color: var(--ink);
+    border-radius: 10px; box-shadow: 0 12px 30px var(--shadow);
+  }
+  .leaflet-popup-tip { background: var(--panel); }
+  .leaflet-popup-content { margin: 13px 15px; font: 400 13px/1.45 'Barlow', sans-serif; }
+  .leaflet-popup-close-button { color: var(--ink-muted) !important; }
+
+  .pop-stripe { border-left: 4px solid var(--line); padding-left: 10px; }
+  .pop-eyebrow {
+    display: flex; align-items: center; gap: 7px;
+    font-family: 'Barlow Semi Condensed', sans-serif;
+    font-weight: 700; text-transform: uppercase; letter-spacing: .07em;
+    font-size: 11.5px; color: var(--ink-muted); margin-bottom: 3px;
+  }
+  .pop-chip {
+    width: 16px; height: 16px; border-radius: 4px; flex: 0 0 auto;
+    display: inline-flex; align-items: center; justify-content: center;
+    color: #fff; font-size: 9.5px; font-weight: 700;
+  }
+  .pop-heading {
+    font-family: 'Barlow Semi Condensed', sans-serif; font-weight: 700;
+    font-size: 15px; color: var(--ink); margin-bottom: 4px; text-wrap: balance;
+  }
+  .pop-price {
+    font-family: 'IBM Plex Mono', monospace; font-variant-numeric: tabular-nums;
+    font-size: 13px; font-weight: 500; color: var(--ink); line-height: 1.5;
+  }
+  .pop-meta {
+    font-size: 11px; color: var(--ink-muted); margin-top: 3px;
+  }
+  .pop-facilities {
+    margin-top: 9px; padding-top: 8px; border-top: 1px solid var(--line);
+  }
+  .pop-facilities ul { margin: 5px 0 0 15px; padding: 0; }
+  .pop-facilities li { margin-bottom: 2px; }
+  .pop-source { font-size: 10.5px; color: var(--ink-muted); margin-top: 8px; }
+  .pop-search-label {
+    font-family: 'Barlow Semi Condensed', sans-serif; font-size: 11px;
+    color: var(--ink-muted); margin-bottom: 6px;
+  }
+
+  @media (max-width: 640px) {
+    .plaque { padding: 11px 13px; font-size: 12.5px; }
+    .search-pill input { width: 42vw; }
+    .legend-title { font-size: 14.5px; }
+    .legend-note { max-width: 200px; }
   }
 </style>
 
@@ -52,6 +246,10 @@ const TAXA = [
 const WMS_BASE = "https://stadsatlas.malmo.se/wms/fgk.qgs";
 const LAYER = "parkeringsavgift_p";
 
+// Parkeringsanläggningar (garage/ytor) med eget fast pris, oberoende av gatutaxan.
+// Källa: karta.pmalmo.se/api/area (Parkering Malmö). Statisk ögonblicksbild, laddas från facilities.json.
+let FACILITIES = [];
+
 const map = L.map('map', { zoomControl: true }).setView([55.5975, 13.010], 14);
 
 L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -71,21 +269,26 @@ const zoneLayer = L.tileLayer.wms(WMS_BASE, {
 // ---- Legend ----
 const legend = L.control({ position: 'topright' });
 legend.onAdd = function () {
-  const div = L.DomUtil.create('div', 'panel');
+  const div = L.DomUtil.create('div', 'plaque');
   let rows = TAXA.map(t => `
-    <tr>
-      <td><span class="swatch" style="background:${t.color}"></span></td>
-      <td class="taxa-name">${t.label}</td>
-      <td class="price">${t.price}</td>
-    </tr>`).join('');
+    <div class="rate-row">
+      <span class="rate-chip" style="background:${t.color}"></span>
+      <span class="rate-name">${t.label}</span>
+      <span class="rate-price">${t.price}</span>
+    </div>`).join('');
   div.innerHTML = `
-    <h1>Parkeringstaxor i Malmö</h1>
-    <table>${rows}</table>
+    <div class="legend-title">Parkeringstaxor i Malmö</div>
+    <div class="rate-list">${rows}
+      <div class="rate-row">
+        <span class="legend-facility-chip"><span class="facility-badge" style="width:16px;height:16px;font-size:9px;line-height:12px;">P</span></span>
+        <span class="rate-name">P-anläggningar</span>
+        <span class="rate-price">Eget fast pris</span>
+      </div>
+    </div>
     <div class="legend-note">
-      Klicka på en gata i kartan för att se exakt taxa. Zoner hämtas live från Malmö stads officiella karttjänst.
-      Boendeparkering ger lägre avgift inom eget område. Vägmärket på plats gäller alltid.
-      <br><br>
-      <em>Antal parkeringsplatser per zon publiceras inte som öppna data av Malmö stad och visas därför inte här.</em>
+      Klicka på en gata eller ett P-märke för exakt pris, eller sök en adress till vänster.
+      Zoner hämtas live från Malmö stad. Boendeparkering ger lägre avgift inom eget område.
+      Vägmärket på plats gäller alltid.
     </div>
   `;
   L.DomEvent.disableClickPropagation(div);
@@ -93,9 +296,96 @@ legend.onAdd = function () {
 };
 legend.addTo(map);
 
+// ---- Address search ----
+const searchControl = L.control({ position: 'topleft' });
+searchControl.onAdd = function () {
+  const div = L.DomUtil.create('div', 'search-panel');
+  div.innerHTML = `
+    <form id="search-form" class="search-pill">
+      <input id="search-input" type="text" placeholder="Sök adress i Malmö…" autocomplete="off">
+      <button type="submit">Sök</button>
+    </form>
+    <div class="search-status" id="search-status"></div>
+  `;
+  L.DomEvent.disableClickPropagation(div);
+  return div;
+};
+searchControl.addTo(map);
+
+document.getElementById('search-form').addEventListener('submit', function (ev) {
+  ev.preventDefault();
+  const q = document.getElementById('search-input').value.trim();
+  if (q) geocodeAndShow(q);
+});
+
+async function geocodeAndShow(query) {
+  const status = document.getElementById('search-status');
+  status.textContent = 'Söker…';
+  // Sökrutan (lon_min,lat_max,lon_max,lat_min) med marginal runt Malmö.
+  const viewbox = '12.80,55.70,13.20,55.45';
+  const url = 'https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=se&bounded=1&viewbox=' +
+    encodeURIComponent(viewbox) + '&q=' + encodeURIComponent(query + ', Malmö');
+  try {
+    const res = await fetch(url);
+    const results = await res.json();
+    if (!results.length) {
+      status.textContent = 'Adressen hittades inte.';
+      return;
+    }
+    status.textContent = '';
+    const latlng = L.latLng(parseFloat(results[0].lat), parseFloat(results[0].lon));
+    map.setView(latlng, 18);
+    await showInfoPopup(latlng, results[0].display_name);
+  } catch (err) {
+    status.textContent = 'Kunde inte söka just nu.';
+  }
+}
+
 function taxaFromValue(value) {
   const v = (value || '').toLowerCase();
   return TAXA.find(t => v.includes(t.match));
+}
+
+// ---- Facilities (parkeringsanläggningar med fast pris) ----
+const facilityIcon = L.divIcon({
+  className: '',
+  html: '<div class="facility-badge">P</div>',
+  iconSize: [20, 20],
+  iconAnchor: [10, 10]
+});
+
+fetch('facilities.json')
+  .then(res => res.json())
+  .then(data => {
+    FACILITIES = data;
+    FACILITIES.forEach(f => {
+      L.marker([f.lat, f.lon], { icon: facilityIcon, title: f.name }).addTo(map).bindPopup(`
+        <div class="pop-stripe" style="border-color:var(--facility-fg);">
+          <div class="pop-eyebrow"><span class="pop-chip" style="background:var(--facility-fg);color:#1b2422;">P</span>Fast pris</div>
+          <div class="pop-heading">${f.name}</div>
+          <div class="pop-meta">${f.addr.join(', ')}</div>
+          <div class="pop-price">${f.rates.filter(Boolean).map(r => r).join('<br>')}</div>
+          <div class="pop-source">Ej gatutaxa – källa: Parkering Malmö</div>
+        </div>
+      `);
+    });
+  })
+  .catch(() => { /* facilities are a bonus layer; page works fine without them */ });
+
+function haversine(lat1, lon1, lat2, lon2) {
+  const R = 6371000;
+  const toRad = d => d * Math.PI / 180;
+  const dLat = toRad(lat2 - lat1), dLon = toRad(lon2 - lon1);
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+function nearbyFacilities(latlng, radiusM, limit) {
+  return FACILITIES
+    .map(f => ({ ...f, dist: haversine(latlng.lat, latlng.lng, f.lat, f.lon) }))
+    .filter(f => f.dist <= radiusM)
+    .sort((a, b) => a.dist - b.dist)
+    .slice(0, limit || 3);
 }
 
 function showLoading(show) {
@@ -105,7 +395,7 @@ function showLoading(show) {
       el = document.createElement('div');
       el.id = 'loading-badge';
       el.className = 'loading-badge';
-      el.textContent = 'Hämtar taxa…';
+      el.innerHTML = '<span class="loading-dot"></span>Hämtar taxa…';
       document.body.appendChild(el);
     }
   } else if (el) {
@@ -113,16 +403,11 @@ function showLoading(show) {
   }
 }
 
-map.on('click', async function (e) {
+async function fetchTaxaAt(latlng) {
   const size = map.getSize();
-  const nw = map.containerPointToLayerPoint([0, 0]);
-  const sw = map.project(map.getBounds().getSouthWest());
-  const ne = map.project(map.getBounds().getNorthEast());
-
-  // Bounding box of the current view, transformed to EPSG:3857 (meters)
   const sw3857 = L.CRS.EPSG3857.project(map.getBounds().getSouthWest());
   const ne3857 = L.CRS.EPSG3857.project(map.getBounds().getNorthEast());
-  const point = e.containerPoint;
+  const point = map.latLngToContainerPoint(latlng);
 
   const params = new URLSearchParams({
     SERVICE: 'WMS',
@@ -141,32 +426,64 @@ map.on('click', async function (e) {
     FEATURE_COUNT: 5
   });
 
+  const res = await fetch(WMS_BASE + '?' + params.toString());
+  const json = await res.json();
+  if (!json.features || json.features.length === 0) return null;
+  return json.features[0].properties;
+}
+
+async function showInfoPopup(latlng, label) {
   showLoading(true);
+  let taxaBlock;
   try {
-    const res = await fetch(WMS_BASE + '?' + params.toString());
-    const json = await res.json();
-    showLoading(false);
-
-    if (!json.features || json.features.length === 0) {
-      L.popup().setLatLng(e.latlng)
-        .setContent('Ingen avgiftszon hittades här (klicka närmare en gata).')
-        .openOn(map);
-      return;
+    const props = await fetchTaxaAt(latlng);
+    if (props) {
+      const value = props.value || '';
+      const taxa = taxaFromValue(value);
+      const stripeColor = taxa ? taxa.color : 'var(--line)';
+      const chip = taxa
+        ? `<span class="pop-chip" style="background:${taxa.color}">${taxa.code}</span>`
+        : '';
+      taxaBlock = `
+        <div class="pop-stripe" style="border-color:${stripeColor}">
+          <div class="pop-eyebrow">${chip}Gatuparkering</div>
+          <div class="pop-heading">${taxa ? taxa.label : (props.taxa_omrad || 'Okänd taxa')}</div>
+          <div class="pop-price">${value}</div>
+        </div>`;
+    } else {
+      taxaBlock = `
+        <div class="pop-stripe">
+          <div class="pop-eyebrow">Gatuparkering</div>
+          <div class="pop-heading">Ingen gatutaxa här</div>
+          <div class="pop-meta">Ingen avgiftszon för gatuparkering hittades exakt på denna punkt.</div>
+        </div>`;
     }
-
-    const f = json.features[0];
-    const value = f.properties.value || '';
-    const taxa = taxaFromValue(value);
-    const swatch = taxa ? `<span class="swatch" style="background:${taxa.color}"></span> ` : '';
-
-    L.popup().setLatLng(e.latlng).setContent(`
-      <div class="popup-title">${swatch}${taxa ? taxa.label : (f.properties.taxa_omrad || 'Okänd taxa')}</div>
-      <div class="popup-price">${value}</div>
-      <div class="popup-source">Källa: Malmö stad, live data</div>
-    `).openOn(map);
   } catch (err) {
-    showLoading(false);
-    L.popup().setLatLng(e.latlng).setContent('Kunde inte hämta data just nu.').openOn(map);
+    taxaBlock = `
+      <div class="pop-stripe">
+        <div class="pop-eyebrow">Gatuparkering</div>
+        <div class="pop-heading">Kunde inte hämta taxa</div>
+        <div class="pop-meta">Försök igen om en stund.</div>
+      </div>`;
   }
+  showLoading(false);
+
+  const nearby = nearbyFacilities(latlng, 80, 3);
+  let facilitiesBlock = '';
+  if (nearby.length) {
+    facilitiesBlock = `<div class="pop-facilities"><div class="eyebrow">P-anläggningar i närheten</div><ul>` +
+      nearby.map(f => `<li>${f.name} <span style="color:var(--ink-muted)">(~${Math.round(f.dist)} m)</span>: ${f.rates[0] || ''}</li>`).join('') +
+      `</ul></div>`;
+  }
+
+  const labelBlock = label ? `<div class="pop-search-label">${label}</div>` : '';
+
+  L.popup({ maxWidth: 290 }).setLatLng(latlng)
+    .setContent(labelBlock + taxaBlock + facilitiesBlock + '<div class="pop-source">Källa: Malmö stad, live data</div>')
+    .openOn(map);
+}
+
+map.on('click', function (e) {
+  showInfoPopup(e.latlng);
 });
 </script>
