@@ -229,6 +229,16 @@
   }
   .pop-facilities ul { margin: 5px 0 0 15px; padding: 0; }
   .pop-facilities li { margin-bottom: 2px; }
+  .pop-recommend {
+    margin-top: 9px; padding-top: 9px; border-top: 1px solid var(--line);
+  }
+  .pop-recommend-best {
+    display: flex; gap: 8px; align-items: flex-start; margin-top: 4px;
+  }
+  .pop-recommend-alts {
+    margin: 7px 0 0 15px; padding: 0; font-size: 11.5px; color: var(--ink-muted);
+  }
+  .pop-recommend-alts li { margin-bottom: 2px; }
   .pop-source { font-size: 10.5px; color: var(--ink-muted); margin-top: 8px; }
   .pop-search-label {
     font-family: 'Barlow Semi Condensed', sans-serif; font-size: 11px;
@@ -249,14 +259,47 @@
 <script>
 // ---- Officiella taxor, källa: malmo.se/Bo-och-leva/Stadsmiljo-och-trafik/Parkering/Parkeringsavgifter.html ----
 const TAXA = [
-  { code: "A", label: "Taxa A", color: "#2323f8", price: "30 kr/tim 8–22, övrig tid 5 kr/tim", match: "taxa a" },
-  { code: "B", label: "Taxa B", color: "#f82323", price: "25 kr/tim 8–22, övrig tid 5 kr/tim", match: "taxa b" },
-  { code: "C", label: "Taxa C", color: "#6e6e6e", price: "20 kr/tim 8–22, övrig tid 5 kr/tim", match: "taxa c" },
-  { code: "D", label: "Taxa D", color: "#4ea84e", price: "15 kr/tim 8–20, övrig tid 2 kr/tim", match: "taxa d" },
-  { code: "E", label: "Taxa E", color: "#e27acf", price: "10 kr/tim 8–20, övrig tid 2 kr/tim", match: "taxa e" },
-  { code: "F", label: "Taxa F", color: "#f66708", price: "5 kr/tim 8–20, övrig tid 2 kr/tim", match: "taxa f" },
-  { code: "P", label: "Taxa Pendlar", color: "#7e390b", price: "1 kr/tim, alla tider", match: "pendlar" },
+  { code: "A", label: "Taxa A", color: "#2323f8", price: "30 kr/tim 8–22, övrig tid 5 kr/tim", match: "taxa a", dayRate: 30, offRate: 5, dayStart: 8, dayEnd: 22 },
+  { code: "B", label: "Taxa B", color: "#f82323", price: "25 kr/tim 8–22, övrig tid 5 kr/tim", match: "taxa b", dayRate: 25, offRate: 5, dayStart: 8, dayEnd: 22 },
+  { code: "C", label: "Taxa C", color: "#6e6e6e", price: "20 kr/tim 8–22, övrig tid 5 kr/tim", match: "taxa c", dayRate: 20, offRate: 5, dayStart: 8, dayEnd: 22 },
+  { code: "D", label: "Taxa D", color: "#4ea84e", price: "15 kr/tim 8–20, övrig tid 2 kr/tim", match: "taxa d", dayRate: 15, offRate: 2, dayStart: 8, dayEnd: 20 },
+  { code: "E", label: "Taxa E", color: "#e27acf", price: "10 kr/tim 8–20, övrig tid 2 kr/tim", match: "taxa e", dayRate: 10, offRate: 2, dayStart: 8, dayEnd: 20 },
+  { code: "F", label: "Taxa F", color: "#f66708", price: "5 kr/tim 8–20, övrig tid 2 kr/tim", match: "taxa f", dayRate: 5, offRate: 2, dayStart: 8, dayEnd: 20 },
+  { code: "P", label: "Taxa Pendlar", color: "#7e390b", price: "1 kr/tim, alla tider", match: "pendlar", dayRate: 1, offRate: 1, dayStart: 0, dayEnd: 24 },
 ];
+
+// Priset just nu för en taxa, baserat på veckodag och klockslag (ignorerar undantag för dag före helgdag).
+function currentHourlyRate(taxa) {
+  if (taxa.dayStart === 0 && taxa.dayEnd === 24) return taxa.dayRate;
+  const now = new Date();
+  const isWeekday = now.getDay() >= 1 && now.getDay() <= 5;
+  const inDayWindow = now.getHours() >= taxa.dayStart && now.getHours() < taxa.dayEnd;
+  return (isWeekday && inDayWindow) ? taxa.dayRate : taxa.offRate;
+}
+
+// Plockar ut ett jämförbart kr/tim-pris ur en parkeringsanläggnings fritextrader. Ungefärligt.
+function parseHourlyRate(rates) {
+  for (const r of rates) {
+    const m = r.match(/(\d+(?:[.,]\d+)?)\s*kr\s*\/?\s*(tim|timme|h)\b/i);
+    if (m) return parseFloat(m[1].replace(',', '.'));
+  }
+  if (rates.some(r => /^gratis/i.test(r.trim()))) return 0;
+  return null;
+}
+
+function formatPrice(p) {
+  return p === 0 ? 'Gratis' : p + ' kr/tim';
+}
+
+// Destinationspunkt `distanceM` meter i riktning `bearingDeg` från (lat, lon).
+function destinationPoint(lat, lon, distanceM, bearingDeg) {
+  const R = 6371000;
+  const brng = bearingDeg * Math.PI / 180;
+  const lat1 = lat * Math.PI / 180, lon1 = lon * Math.PI / 180;
+  const lat2 = Math.asin(Math.sin(lat1) * Math.cos(distanceM / R) + Math.cos(lat1) * Math.sin(distanceM / R) * Math.cos(brng));
+  const lon2 = lon1 + Math.atan2(Math.sin(brng) * Math.sin(distanceM / R) * Math.cos(lat1), Math.cos(distanceM / R) - Math.sin(lat1) * Math.sin(lat2));
+  return { lat: lat2 * 180 / Math.PI, lon: lon2 * 180 / Math.PI };
+}
 
 const WMS_BASE = "https://stadsatlas.malmo.se/wms/fgk.qgs";
 const LAYER = "parkeringsavgift_p";
@@ -369,7 +412,7 @@ async function geocodeAndShow(query) {
     status.textContent = '';
     const latlng = L.latLng(parseFloat(results[0].lat), parseFloat(results[0].lon));
     map.setView(latlng, 18);
-    await showInfoPopup(latlng, results[0].display_name);
+    await showInfoPopup(latlng, results[0].display_name, true);
   } catch (err) {
     status.textContent = 'Kunde inte söka just nu.';
   }
@@ -422,27 +465,30 @@ function nearbyFacilities(latlng, radiusM, limit) {
     .slice(0, limit || 3);
 }
 
-function showLoading(show) {
+function showLoading(show, text) {
   let el = document.getElementById('loading-badge');
   if (show) {
     if (!el) {
       el = document.createElement('div');
       el.id = 'loading-badge';
       el.className = 'loading-badge';
-      el.innerHTML = '<span class="loading-dot"></span>Hämtar taxa…';
       document.body.appendChild(el);
     }
+    el.innerHTML = '<span class="loading-dot"></span>' + (text || 'Hämtar taxa…');
   } else if (el) {
     el.remove();
   }
 }
 
-async function fetchTaxaAt(latlng) {
-  const size = map.getSize();
-  const sw3857 = L.CRS.EPSG3857.project(map.getBounds().getSouthWest());
-  const ne3857 = L.CRS.EPSG3857.project(map.getBounds().getNorthEast());
-  const point = map.latLngToContainerPoint(latlng);
-
+// Fristående GetFeatureInfo-fråga för en enskild punkt (oberoende av kartans nuvarande vy/zoom).
+// Kartservern kräver en tillräckligt stor bildruta för att hitta gator som ligger en bit
+// från den exakta adresspunkten (t.ex. husets ingång vs. gatans mittlinje) - en för liten
+// bildruta missar träffar även om upplösningen (m/pixel) är oförändrad.
+async function fetchTaxaAtPoint(lat, lon) {
+  const center = L.CRS.EPSG3857.project(L.latLng(lat, lon));
+  const resPerPx = 0.597; // motsvarar zoom 18 i EPSG:3857
+  const size = 1280; // px
+  const half = resPerPx * size / 2; // ~382 m
   const params = new URLSearchParams({
     SERVICE: 'WMS',
     VERSION: '1.3.0',
@@ -451,26 +497,105 @@ async function fetchTaxaAt(latlng) {
     QUERY_LAYERS: LAYER,
     STYLES: '',
     CRS: 'EPSG:3857',
-    BBOX: [sw3857.x, sw3857.y, ne3857.x, ne3857.y].join(','),
-    WIDTH: Math.round(size.x),
-    HEIGHT: Math.round(size.y),
-    I: Math.round(point.x),
-    J: Math.round(point.y),
+    BBOX: [center.x - half, center.y - half, center.x + half, center.y + half].join(','),
+    WIDTH: size,
+    HEIGHT: size,
+    I: Math.round(size / 2),
+    J: Math.round(size / 2),
     INFO_FORMAT: 'application/json',
     FEATURE_COUNT: 5
   });
-
   const res = await fetch(WMS_BASE + '?' + params.toString());
   const json = await res.json();
   if (!json.features || json.features.length === 0) return null;
   return json.features[0].properties;
 }
 
-async function showInfoPopup(latlng, label) {
-  showLoading(true);
+// Provar gatutaxan i en ring av punkter runt `latlng`, plus fastprisparkeringar, och rankar allt efter pris just nu.
+async function findCheapestNearby(latlng) {
+  const radii = [100, 220];
+  const directions = 8;
+  const samplePoints = [{ lat: latlng.lat, lon: latlng.lng, radius: 0 }];
+  for (const r of radii) {
+    for (let i = 0; i < directions; i++) {
+      const bearing = (360 / directions) * i;
+      const dp = destinationPoint(latlng.lat, latlng.lng, r, bearing);
+      samplePoints.push({ lat: dp.lat, lon: dp.lon, radius: r });
+    }
+  }
+
+  const streetResults = await Promise.all(samplePoints.map(async p => {
+    try {
+      const props = await fetchTaxaAtPoint(p.lat, p.lon);
+      if (!props) return null;
+      const taxa = taxaFromValue(props.value || '');
+      if (!taxa) return null;
+      return {
+        type: 'street', code: taxa.code, label: taxa.label, color: taxa.color,
+        badge: taxa.code, distance: p.radius, price: currentHourlyRate(taxa)
+      };
+    } catch (err) { return null; }
+  }));
+
+  const streetByCode = new Map();
+  streetResults.filter(Boolean).forEach(c => {
+    const existing = streetByCode.get(c.code);
+    if (!existing || c.distance < existing.distance) streetByCode.set(c.code, c);
+  });
+
+  const facilityCandidates = nearbyFacilities(latlng, 250, 10)
+    .map(f => {
+      const price = parseHourlyRate(f.rates);
+      if (price === null) return null;
+      return { type: 'facility', code: 'f:' + f.id, label: f.name, color: 'var(--facility-fg)', badge: 'P', distance: f.dist, price };
+    })
+    .filter(Boolean);
+
+  const all = [...streetByCode.values(), ...facilityCandidates];
+  all.sort((a, b) => a.price - b.price || a.distance - b.distance);
+  return all.slice(0, 6);
+}
+
+function renderRecommendation(candidates) {
+  if (!candidates || !candidates.length) {
+    return `<div class="pop-recommend"><div class="eyebrow">Billigast i närheten</div>
+      <div class="pop-meta">Inga jämförbara priser hittades inom 250 m.</div></div>`;
+  }
+  const best = candidates[0];
+  const rest = candidates.slice(1, 4);
+  const chipStyle = best.type === 'facility' ? `background:${best.color};color:var(--facility-bg)` : `background:${best.color}`;
+  const altHtml = rest.length
+    ? `<ul class="pop-recommend-alts">` + rest.map(c =>
+        `<li>${c.label} — ${formatPrice(c.price)}, ~${Math.round(c.distance)} m</li>`
+      ).join('') + `</ul>`
+    : '';
+  return `
+    <div class="pop-recommend">
+      <div class="eyebrow">Billigast i närheten just nu</div>
+      <div class="pop-recommend-best">
+        <span class="pop-chip" style="${chipStyle}">${best.badge}</span>
+        <div>
+          <div class="pop-heading" style="margin-bottom:1px;">${best.label}</div>
+          <div class="pop-price">${formatPrice(best.price)} · ~${Math.round(best.distance)} m bort</div>
+        </div>
+      </div>
+      ${altHtml}
+      <div class="pop-meta" style="margin-top:6px;">Ungefärligt jämförelsepris – kontrollera alltid skylt/app innan du parkerar.</div>
+    </div>`;
+}
+
+async function showInfoPopup(latlng, label, withRecommendation) {
+  showLoading(true, withRecommendation ? 'Letar billigaste alternativ…' : 'Hämtar taxa…');
+
+  const [taxaResult, recommendResult] = await Promise.allSettled([
+    fetchTaxaAtPoint(latlng.lat, latlng.lng),
+    withRecommendation ? findCheapestNearby(latlng) : Promise.resolve(null)
+  ]);
+  showLoading(false);
+
   let taxaBlock;
-  try {
-    const props = await fetchTaxaAt(latlng);
+  if (taxaResult.status === 'fulfilled') {
+    const props = taxaResult.value;
     if (props) {
       const value = props.value || '';
       const taxa = taxaFromValue(value);
@@ -492,7 +617,7 @@ async function showInfoPopup(latlng, label) {
           <div class="pop-meta">Ingen avgiftszon för gatuparkering hittades exakt på denna punkt.</div>
         </div>`;
     }
-  } catch (err) {
+  } else {
     taxaBlock = `
       <div class="pop-stripe">
         <div class="pop-eyebrow">Gatuparkering</div>
@@ -500,20 +625,26 @@ async function showInfoPopup(latlng, label) {
         <div class="pop-meta">Försök igen om en stund.</div>
       </div>`;
   }
-  showLoading(false);
 
-  const nearby = nearbyFacilities(latlng, 80, 3);
+  let recommendationBlock = '';
   let facilitiesBlock = '';
-  if (nearby.length) {
-    facilitiesBlock = `<div class="pop-facilities"><div class="eyebrow">P-anläggningar i närheten</div><ul>` +
-      nearby.map(f => `<li>${f.name} <span style="color:var(--ink-muted)">(~${Math.round(f.dist)} m)</span>: ${f.rates[0] || ''}</li>`).join('') +
-      `</ul></div>`;
+  if (withRecommendation) {
+    recommendationBlock = recommendResult.status === 'fulfilled'
+      ? renderRecommendation(recommendResult.value)
+      : `<div class="pop-recommend"><div class="eyebrow">Billigast i närheten</div><div class="pop-meta">Kunde inte hämta förslag just nu.</div></div>`;
+  } else {
+    const nearby = nearbyFacilities(latlng, 80, 3);
+    if (nearby.length) {
+      facilitiesBlock = `<div class="pop-facilities"><div class="eyebrow">P-anläggningar i närheten</div><ul>` +
+        nearby.map(f => `<li>${f.name} <span style="color:var(--ink-muted)">(~${Math.round(f.dist)} m)</span>: ${f.rates[0] || ''}</li>`).join('') +
+        `</ul></div>`;
+    }
   }
 
   const labelBlock = label ? `<div class="pop-search-label">${label}</div>` : '';
 
-  L.popup({ maxWidth: 290 }).setLatLng(latlng)
-    .setContent(labelBlock + taxaBlock + facilitiesBlock + '<div class="pop-source">Källa: Malmö stad, live data</div>')
+  L.popup({ maxWidth: 300 }).setLatLng(latlng)
+    .setContent(labelBlock + taxaBlock + recommendationBlock + facilitiesBlock + '<div class="pop-source">Källa: Malmö stad, live data</div>')
     .openOn(map);
 }
 
